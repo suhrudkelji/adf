@@ -1,0 +1,26 @@
+{
+	"name": "DestinationDataset_n07",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "dataworkspace0540_pooldb",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlDWTable",
+		"schema": [
+			{
+				"name": "empid",
+				"type": "varchar"
+			},
+			{
+				"name": "ename",
+				"type": "varchar"
+			}
+		],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "emp"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

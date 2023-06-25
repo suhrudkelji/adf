@@ -1,0 +1,195 @@
+{
+	"name": "01_dataflow",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "salesorder",
+						"type": "DatasetReference"
+					},
+					"name": "salesstream"
+				},
+				{
+					"dataset": {
+						"referenceName": "AzureSqlTable1",
+						"type": "DatasetReference"
+					},
+					"name": "salesorderheaderstream"
+				},
+				{
+					"dataset": {
+						"referenceName": "dataworkspace5040_pooldb",
+						"type": "DatasetReference"
+					},
+					"name": "selectmaxsk"
+				},
+				{
+					"dataset": {
+						"referenceName": "dataworkspace5040_pooldb",
+						"type": "DatasetReference"
+					},
+					"name": "duplicatedata"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "dataworkspace5040_pooldb",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				},
+				{
+					"name": "cachesink"
+				}
+			],
+			"transformations": [
+				{
+					"name": "salesorderdetailjoinsalesorderheadr"
+				},
+				{
+					"name": "select1"
+				},
+				{
+					"name": "totalamount"
+				},
+				{
+					"name": "surrogateKey1"
+				},
+				{
+					"name": "doesexists"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          SalesOrderID as integer,",
+				"          SalesOrderDetailID as integer,",
+				"          OrderQty as integer,",
+				"          ProductID as integer,",
+				"          UnitPrice as decimal(19,4),",
+				"          UnitPriceDiscount as decimal(19,4),",
+				"          LineTotal as decimal(38,6),",
+				"          rowguid as string,",
+				"          ModifiedDate as timestamp",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> salesstream",
+				"source(output(",
+				"          SalesOrderID as integer,",
+				"          RevisionNumber as integer,",
+				"          OrderDate as timestamp,",
+				"          DueDate as timestamp,",
+				"          ShipDate as timestamp,",
+				"          Status as integer,",
+				"          OnlineOrderFlag as boolean,",
+				"          SalesOrderNumber as string,",
+				"          PurchaseOrderNumber as string,",
+				"          AccountNumber as string,",
+				"          CustomerID as integer,",
+				"          ShipToAddressID as integer,",
+				"          BillToAddressID as integer,",
+				"          ShipMethod as string,",
+				"          CreditCardApprovalCode as string,",
+				"          SubTotal as decimal(19,4),",
+				"          TaxAmt as decimal(19,4),",
+				"          Freight as decimal(19,4),",
+				"          TotalDue as decimal(19,4),",
+				"          Comment as string,",
+				"          rowguid as string,",
+				"          ModifiedDate as timestamp",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> salesorderheaderstream",
+				"source(output(",
+				"          sk as long,",
+				"          col1 as string,",
+				"          col2 as string,",
+				"          col3 as string,",
+				"          col4 as string,",
+				"          col5 as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'select max([sk]) as selectmaxsk FROM [dbo].[salesTable]\\n',",
+				"     format: 'query',",
+				"     staged: true) ~> selectmaxsk",
+				"source(output(",
+				"          empid as string,",
+				"          ename as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table',",
+				"     staged: true) ~> duplicatedata",
+				"doesexists, salesorderheaderstream join(salesstream@SalesOrderID == salesorderheaderstream@SalesOrderID,",
+				"     joinType:'left',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> salesorderdetailjoinsalesorderheadr",
+				"salesorderdetailjoinsalesorderheadr select(mapColumn(",
+				"          SalesOrderID = salesstream@SalesOrderID,",
+				"          SalesOrderDetailID,",
+				"          OrderQty,",
+				"          ProductID,",
+				"          UnitPrice",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> select1",
+				"select1 derive(total = multiply(OrderQty,UnitPrice)) ~> totalamount",
+				"totalamount keyGenerate(output(sk as long),",
+				"     startAt: 1L,",
+				"     stepValue: 1L) ~> surrogateKey1",
+				"salesstream, salesorderheaderstream exists(salesstream@SalesOrderID == salesorderheaderstream@SalesOrderID,",
+				"     negate:true,",
+				"     broadcast: 'auto')~> doesexists",
+				"surrogateKey1 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          empid as string,",
+				"          ename as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     staged: true,",
+				"     allowCopyCommand: true,",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          sk,",
+				"          col1 = SalesOrderID,",
+				"          col2 = OrderQty,",
+				"          col3 = ProductID,",
+				"          col4 = UnitPrice,",
+				"          col5 = total",
+				"     )) ~> sink1",
+				"selectmaxsk sink(validateSchema: false,",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     store: 'cache',",
+				"     format: 'inline',",
+				"     output: false,",
+				"     saveOrder: 1,",
+				"     mapColumn(",
+				"          sk,",
+				"          col1,",
+				"          col2,",
+				"          col3,",
+				"          col4,",
+				"          col5",
+				"     )) ~> cachesink"
+			]
+		}
+	}
+}

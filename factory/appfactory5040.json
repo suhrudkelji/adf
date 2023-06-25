@@ -1,0 +1,9 @@
+{
+	"name": "appfactory5040",
+	"location": "northeurope",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "8094353b-0a47-45c0-ad43-d778c8949832",
+		"tenantId": "0dda6a4d-0610-43ae-b788-ab323af375b0"
+	}
+}
